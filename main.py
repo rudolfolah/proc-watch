@@ -49,21 +49,33 @@ def parse_ps_line(line: str) -> dict:
     return data
 
 
+def set_stats_info_for_process(stats: prometheus_client.Info, data: dict):
+    stats.info({
+        'process': str(data['comm']),
+        'cpu': str(data['cpu']),
+        'mem': str(data['mem']),
+    })
+
+
 def main():
-    stats_registry = prometheus_client.CollectorRegistry()
-    stats_num_processes = prometheus_client.Gauge('num_processes', 'Number of processes running', registry=stats_registry)
-    stats_top_cpu = prometheus_client.Gauge('top_cpu', 'Top CPU usage, one process', registry=stats_registry)
-    stats_top_memory = prometheus_client.Gauge('top_mem', 'Top Memory usage, one process', registry=stats_registry)
+    registry = prometheus_client.CollectorRegistry()
+    stats_num_processes = prometheus_client.Gauge('num_processes', 'Number of processes running', registry=registry)
+    stats_top_cpu = prometheus_client.Gauge('top_cpu', 'Top CPU usage, one process', registry=registry)
+    stats_top_memory = prometheus_client.Gauge('top_mem', 'Top Memory usage, one process', registry=registry)
+    stats_top_cpu_process = prometheus_client.Info('top_cpu_process', 'The process with top CPU usage', registry=registry)
+    stats_top_memory_process = prometheus_client.Info('top_mem_process', 'The process with top Memory usage', registry=registry)
 
     completed = run_ps_command()
     processes = [parse_ps_line(line) for line in completed.stdout.split('\n')[1:] if len(line) > 0]
     stats_num_processes.set(len(processes))
     top_cpu = max(processes, key=lambda process: process['cpu'])
     stats_top_cpu.set(top_cpu['cpu'])
+    set_stats_info_for_process(stats_top_cpu_process, top_cpu)
     top_memory = max(processes, key=lambda process: process['mem'])
     stats_top_memory.set(top_memory['mem'])
+    set_stats_info_for_process(stats_top_memory_process, top_memory)
 
-    prometheus_client.write_to_textfile(os.environ.get('PROM_EXPORT_PATH', PROM_EXPORT_PATH_DEFAULT), stats_registry)
+    prometheus_client.write_to_textfile(os.environ.get('PROM_EXPORT_PATH', PROM_EXPORT_PATH_DEFAULT), registry)
 
 
 if __name__ == "__main__":
