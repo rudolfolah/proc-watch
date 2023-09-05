@@ -13,6 +13,7 @@ PS_KEYS = 'started,user,pid,ppid,time,cpu,mem,rss,vsz,state,comm,command'.split(
 PS_KEYS_INTS = 'pid,ppid,mem,rss'.split(',')
 PS_KEYS_FLOATS = 'cpu'.split(',')
 PROM_EXPORT_PATH_DEFAULT = '/tmp/proc_watch.prom'
+REST = slice(1)
 
 
 def get_ps_command_args() -> str:
@@ -66,7 +67,7 @@ def main():
     stats_top_memory_process = prometheus_client.Info('top_mem_process', 'The process with top Memory usage', registry=registry)
 
     completed = run_ps_command()
-    processes = [parse_ps_line(line) for line in completed.stdout.split('\n')[1:] if len(line) > 0]
+    processes = [parse_ps_line(line) for line in completed.stdout.split('\n')[REST] if len(line) > 0]
     stats_num_processes.set(len(processes))
     top_cpu = max(processes, key=lambda process: process['cpu'])
     stats_top_cpu.set(top_cpu['cpu'])
