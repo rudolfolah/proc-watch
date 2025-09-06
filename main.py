@@ -8,6 +8,7 @@ import sys
 
 import prometheus_client
 
+RUN_IN_SHELL = os.environ.get("RUN_IN_SHELL", "true").strip().lower()
 
 PS_KEYS = 'started,user,pid,ppid,time,cpu,mem,rss,vsz,state,comm,command'.split(',')
 PS_KEYS_INTS = 'pid,ppid,mem,rss'.split(',')
@@ -19,7 +20,7 @@ def get_ps_command_args() -> str:
     # Based on https://github.com/y-ken/fluent-plugin-watch-process/blob/master/lib/fluent/plugin/in_watch_process.rb#L106-L114
     match sys.platform:
         case 'darwin':
-            return '-ewwo lstart,user,pid,ppid,time,%%cpu,%mem,rss,vsz,state,comm,command'
+            return '-ewwo lstart,user,pid,ppid,time,%cpu,%mem,rss,vsz,state,comm,command'
         case 'linux':
             return '-ewwo lstart,user:20,pid,ppid,time,%cpu,%mem,rss,sz,s,comm,cmd'
         case _:
@@ -29,7 +30,8 @@ def get_ps_command_args() -> str:
 def run_ps_command() -> subprocess.CompletedProcess[str]:
     args = get_ps_command_args()
     env = { 'LANG': 'en_US.UTF-8' }
-    return subprocess.run(args=args, executable='ps', shell=True, capture_output=True, text=True, env=env)
+    shell = RUN_IN_SHELL == "true"
+    return subprocess.run(args=args, executable='ps', shell=shell, capture_output=True, text=True, env=env)
 
 
 def set_ps_values(data: dict, keys: list[str], parse_func: callable):
@@ -39,8 +41,15 @@ def set_ps_values(data: dict, keys: list[str], parse_func: callable):
 
 def parse_ps_line(line: str) -> dict:
     # Based on https://github.com/y-ken/fluent-plugin-watch-process/blob/master/lib/fluent/plugin/in_watch_process.rb#L87-L98
-    timestamp_match = re.match(r'(^\w+\s+\w+\s+\d+\s+\d\d:\d\d:\d\d \d+)', line)
-    timestamp = timestamp_match.group(0)
+    match sys.platform:
+        case 'darwin':
+            timestamp_match = re.match(r'(^\w+\s+\w+\s+\d+\s+\d\d:\d\d:\d\d \d+)', line)
+            timestamp = timestamp_match.group(0)
+        case 'linux':
+            timestamp_match = re.match(r'(\d\d:\d\d:\d\d)', line)
+            timestamp = timestamp_match.group(0)
+        case _:
+            timestamp = ''
     values = re.split(r'[ ]+', line[len(timestamp):].strip())
     data = dict(zip(PS_KEYS, [timestamp] + values))
     set_ps_values(data, PS_KEYS_INTS, int)
