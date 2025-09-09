@@ -1,0 +1,45 @@
+name: Test Container
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      run: docker build -t proc-watch .
+    
+    - name: Run container test
+      run: |
+        # Make test script executable
+        chmod +x test-container.sh
+        
+        # Run the test script
+        ./test-container.sh
+    
+    - name: Verify metrics file exists
+      run: |
+        # Run a quick verification that container creates metrics
+        docker run -d --name verify-test proc-watch
+        
+        # Wait a bit for the container to start and create metrics
+        sleep 15
+        
+        # Check if metrics file exists and has content
+        docker exec verify-test test -f /app/metrics/proc_watch.prom
+        docker exec verify-test cat /app/metrics/proc_watch.prom
+        
+        # Cleanup
+        docker stop verify-test || true
+        docker rm verify-test || true

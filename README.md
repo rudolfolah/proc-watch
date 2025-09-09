@@ -25,3 +25,17 @@ The current method writes to a text file, the default path is `/tmp/proc_watch.p
 ```sh
 less /tmp/proc_watch.prom
 ```
+
+## Docker
+
+Build the image:
+
+```sh
+docker build -t proc-watch:latest .
+```
+
+Run it:
+
+```sh
+docker run -it --rm proc-watch:latest --pid=host
+```
